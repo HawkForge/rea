@@ -50,10 +50,13 @@ const ipcEndpointKey = (value: ElectronIpcFinding): string =>
 interface IpcEndpointFacts {
   // A directly observed transmission stays one fact however it is reached.
   observedTransmission: boolean;
+  // A directly observed registration is the same fact when a wrapper reaches
+  // it with the same handler; only a substituted handler adds a registration.
+  readonly observedHandlers: Set<string>;
   readonly invocations: Set<string>;
 }
 
-const ipcInvocationKey = (location: unknown): string =>
+const ipcLocationKey = (location: unknown): string =>
   String(JSON.stringify(location));
 
 const indexIpcFinding = (
@@ -63,13 +66,19 @@ const indexIpcFinding = (
   const key = ipcEndpointKey(value);
   let facts = index.get(key);
   if (facts === undefined) {
-    facts = { observedTransmission: false, invocations: new Set() };
+    facts = {
+      observedTransmission: false,
+      observedHandlers: new Set(),
+      invocations: new Set(),
+    };
     index.set(key, facts);
   }
   facts.observedTransmission ||=
     value.resolution_basis === undefined &&
     (value.mode === "send" || value.mode === "invoke");
-  facts.invocations.add(ipcInvocationKey(value.invocation_location));
+  if (value.resolution_basis === undefined)
+    facts.observedHandlers.add(ipcLocationKey(value.handler_location));
+  facts.invocations.add(ipcLocationKey(value.invocation_location));
 };
 
 interface PathContext {
@@ -397,7 +406,10 @@ export const collectElectronWrappedCallPaths = (
     const duplicate =
       recorded !== undefined &&
       (recorded.observedTransmission ||
-        recorded.invocations.has(ipcInvocationKey(invocationLocation)));
+        recorded.observedHandlers.has(
+          ipcLocationKey(finding.handler_location),
+        ) ||
+        recorded.invocations.has(ipcLocationKey(invocationLocation)));
     const findingGuarded =
       context.conditions.length > 0 || hasConditions(first) || guardedDispatch;
     // Registry facts do not establish every bridge entry's reachability. Only

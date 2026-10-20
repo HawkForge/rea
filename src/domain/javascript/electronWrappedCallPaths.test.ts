@@ -384,6 +384,24 @@ it("keeps a directly observed renderer operation singular when tracing its expos
     expect.objectContaining({ entry: "desktop.ping", channel: "ping" }),
   );
 });
+it.each([
+  ["a forwarded callback", '(callback)=>ipcRenderer.on("pong",callback)'],
+  ["an inline callback", '()=>ipcRenderer.on("pong",()=>{})'],
+])(
+  "keeps a directly observed renderer listener singular when tracing its exposed member with %s",
+  (_, member) => {
+    const result = analyzeJavaScriptStaticSource(`
+    const {contextBridge,ipcRenderer}=require("electron");
+    contextBridge.exposeInMainWorld("api",{onPong:${member}});
+  `);
+    expect(result.electron.ipc).toHaveLength(1);
+    expect(result.electron.ipc[0]).toMatchObject({
+      channel: "pong",
+      operation: "on",
+    });
+    expect(result.electron.ipc[0]).not.toHaveProperty("resolution_basis");
+  },
+);
 it("does not identify overwritten Electron namespaces or shadowed require", () => {
   for (const source of [
     `const e=require("electron");e.ipcMain={on(){}};e.ipcMain.on("bad",event=>event.sender.copy());`,
