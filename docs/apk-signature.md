@@ -239,12 +239,25 @@ serialized size of the report together with its limitations (which repeat
 archive names) is then checked against an 8 MiB output budget (the exact check
 is authoritative); an over-budget report is refused, not truncated.
 
-The whole-file reader retains read chunks and a concatenated buffer; total
-process memory exceeds the selected file's size. It also computes the complete
+Signing blocks admit at most 4096 ID/value pairs; at most 4096 signing-relevant
+META-INF entries are retained. These fixed counts, signer/lineage counts and the
+report byte budget return nonretryable `resource_constraint` errors naming the
+effective allowance. This release has no runtime override for them. Waiting for
+an active scan cannot raise a fixed count, and complete CLI JSON cannot raise the
+report budget. Occupied scan-queue capacity remains retryable after a scan finishes.
+
+The whole-file reader allocates the selected snapshot and bounded read scratch;
+total process memory exceeds the selected file's size. It also computes the complete
 file SHA-256, so inspection is not header-only. Content digests are recomputed
 at most once per SHA-256/SHA-512 algorithm during one inspection. Input,
 inflation, decoded-record and serialized-output bounds keep work finite;
 resource refusals are distinct from malformed format errors.
+
+If the stable read completes but closing its descriptor fails or is cancelled,
+the error retains `details.partial_observation` with the selected path, complete
+file SHA-256 and byte count. These facts describe the acquired file; they do not
+establish any decoded signing facts. Failed cleanup remains visible until the
+provider releases the descriptor on a cleanup retry.
 
 A file that is not a ZIP is refused as an unsupported target. A damaged ZIP
 (local headers but no end-of-central-directory), a central directory that

@@ -156,6 +156,10 @@ Select one literal seed kind: node ID, route, string, API, IPC channel, module,
 or native export. Matching is exact or literal substring matching; regular
 expressions and executable predicates are not accepted. The trace includes all
 matching seeds and the complete graph reachable in the selected direction.
+`both` follows relationships in either direction, except that a container
+reached through `contains` from one of its children only leads further up its
+containment chain, so a shared asset or artifact root does not pull in its
+other children.
 
 The result contains the matching basis, complete reachable subgraph, terminal
 paths, authority summaries, and native handoffs. A handoff binds
@@ -448,8 +452,10 @@ uncertainty rather than pretending to execute later writes. References
 handed back by local functions, methods, constructors, async functions, and
 generators also retain escape uncertainty, including when the call is read-only;
 this does not establish that a mutation occurred. Aliases
-and shared children in spread and rest copies retain that uncertainty; copied
-primitive slots and unrelated containing properties remain known. Object rest
+and shared children in spread and rest copies retain that uncertainty. Exposing
+the copy alone does not invalidate copied primitive slots or unrelated containing
+properties. Dynamic child writes such as `copy[key].value = 2` remain conservative
+about which original slot was selected. Object rest
 excludes consumed keys, array rest excludes the consumed prefix for known
 arrays, and later explicit data properties and methods replace earlier object
 spread references. A known array prefix does not expose values from a following
@@ -466,6 +472,11 @@ Receiver projections follow known data fields initialized from `this` or earlier
 self-referencing fields; static fields retain their declaring class identity.
 An alias cycle that repeatedly selects deeper children retains escape uncertainty
 at its recovered roots rather than claiming a fixed number of loop iterations.
+Equivalent member reads in a repeating loop share unknown ordering instead of
+creating a distinct capture for every branch history. Straight-line captures and
+once-only loop inputs retain their own selection sites. When unobserved suffixes
+are widened, their exact observed prefixes stay separate so unrelated siblings
+remain known.
 
 Writes through an object getter's returned receiver retain that uncertainty
 when the object is an array element, nested inside mixed object/array
