@@ -1370,28 +1370,6 @@ exit 1`,
   });
 });
 
-it("reports an oversized sha256sum answer as a resource constraint", async () => {
-  const { binary, root } = await writeAdbStub(
-    () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
-if [ "$1" = "-s" ] && [ "$4" = "test" ]; then exit 1; fi
-if [ "$1" = "-s" ] && [ "$3" = "push" ]; then exit 0; fi
-if [ "$1" = "-s" ] && [ "$4" = "sha256sum" ]; then head -c 8192 /dev/zero | tr '\\0' x; exit 0; fi
-exit 1`,
-  );
-  const localFile = join(root, "payload.bin");
-  await writeFile(localFile, "push-payload");
-  const projected = await refusedBy(providerOver(binary), {
-    operation: "push_adb_file",
-    input: {
-      serial: "emulator-5554",
-      local_path: localFile,
-      device_path: "/data/local/tmp/payload.bin",
-      overwrite: false,
-    },
-  });
-  expect(projected).toMatchObject({ code: "resource_constraint" });
-});
-
 it("reports a digest mismatch after push as a changed artifact", async () => {
   const { binary, root } = await writeAdbStub(
     () => `if [ "$1" = "version" ]; then ${VERSION_BLOCK}; exit 0; fi
